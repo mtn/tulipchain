@@ -1,0 +1,6 @@
+[package]
+name = "tulipchain"
+version = "0.1.0"
+authors = ["Michael Noronha <michaeltnoronha@gmail.com>"]
+
+[dependencies]
