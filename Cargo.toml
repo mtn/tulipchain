@@ -4,3 +4,7 @@ version = "0.1.0"
 authors = ["Michael Noronha <michaeltnoronha@gmail.com>"]
 
 [dependencies]
+bincode = "1.0"
+serde = "1.0"
+serde_derive = "1.0"
+sodiumoxide = "0.0.16"
