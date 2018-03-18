@@ -9,7 +9,7 @@ use super::{
 };
 
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct Transaction {
     pub sender_addr: PublicKey,
     pub recipient_addr: PublicKey,

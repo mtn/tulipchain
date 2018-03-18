@@ -1,15 +1,17 @@
 #[macro_use]
 extern crate serde_derive;
-extern crate bincode;
 extern crate sodiumoxide;
+extern crate bincode;
+extern crate chrono;
 extern crate rand;
 
 mod transaction;
 mod blockchain;
 mod address;
 
-type Tulips = u32;
 type SignedDigest = Vec<u8>;
+type Digest = Vec<u8>;
+type Tulips = u32;
 
 use sodiumoxide::crypto::sign;
 type PublicKey = sign::ed25519::PublicKey;
@@ -22,6 +24,7 @@ fn main() {
         recipient_addr: public,
         value: 10,
     };
+
 
     // let encoded: Vec<u8> = serialize(&transaction).unwrap();
     // println!("{:?}", encoded);
