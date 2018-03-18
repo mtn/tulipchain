@@ -1,9 +1,17 @@
 use sodiumoxide::crypto::sign;
-use super::{Tulips, PublicKey, PrivateKey};
+use super::{
+    Tulips,
+    PublicKey,
+    PrivateKey,
+    transaction,
+    SignedDigest,
+};
+
+use transaction::Transaction;
 
 pub struct Address {
     pub public_key: PublicKey,
-    pub private_key: PrivateKey,
+    private_key: PrivateKey,
 
     pub balance: Tulips,
 }
@@ -18,5 +26,20 @@ impl Address {
 
             balance: 0
         }
+    }
+
+    // TODO check account balance and stuff
+    pub fn new_transaction(&self, value: Tulips, recipient_addr: PublicKey)
+        -> (Transaction, SignedDigest) {
+
+        let transaction = Transaction {
+            sender_addr: self.public_key,
+            recipient_addr,
+            value,
+        };
+
+        let signed_digest = transaction.sign(&self.private_key);
+
+        (transaction, signed_digest)
     }
 }

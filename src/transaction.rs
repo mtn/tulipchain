@@ -17,12 +17,12 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    pub fn sign(& mut self, signing_key: PrivateKey) -> SignedDigest {
+    pub fn sign(&self, signing_key: &PrivateKey) -> SignedDigest {
         let serialized = serialize(self).unwrap();
         let hash::sha256::Digest(ref digest) = hash::sha256::hash(&serialized);
 
         // Sign the digest with the senders private key
-        sign::sign(digest, &signing_key)
+        sign::sign(digest, signing_key)
     }
 
     // Ensures that the a signature is valid for a given transaction
@@ -33,8 +33,10 @@ impl Transaction {
         let serialized: Vec<u8> = serialize(self).unwrap();
         let hash::sha256::Digest(ref digest) = hash::sha256::hash(&serialized);
 
-        let verified_data = sign::verify(&signed_digest, &self.sender_addr).unwrap();
+        if let Ok(verified_data) = sign::verify(&signed_digest, &self.sender_addr) {
+            return digest == &verified_data[..]
+        }
 
-        digest == &verified_data[..]
+        false
     }
 }

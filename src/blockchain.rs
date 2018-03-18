@@ -10,12 +10,15 @@ use bincode::serialize;
 use chrono::prelude::*;
 use rand;
 
+
+type Nonce = u32;
+
 #[derive(Serialize)]
 struct Block {
     ind: usize,
     timestamp: DateTime<Utc>,
     transactions: Vec<Transaction>,
-    nonce: u32,
+    nonce: Nonce,
     previous_hash: Option<Digest>,
 }
 
@@ -26,6 +29,30 @@ pub struct Blockchain {
     // Peers gossip to maintain synchronization
     peers: HashSet<u32>,
     id: u32,
+}
+
+impl Block {
+    // Returns an owned digest of the block
+    fn hash(&self) -> Digest {
+        let serialized: Vec<u8> = serialize(self).unwrap();
+        let hash::sha256::Digest(ref digest) = hash::sha256::hash(&serialized);
+
+        digest.to_vec()
+    }
+
+    // Finds a nonce to satisfy the mining problem.
+    // This function should be called on the last block in the chain before the one
+    // we want to add.
+    pub fn find_nonce(&self, previous_nonce: Nonce) -> Nonce {
+        let block_hash = &self.hash();
+
+        let mut nonce = 0;
+        while !Blockchain::is_valid_nonce(previous_nonce, nonce, block_hash) {
+            nonce += 1;
+        }
+
+        nonce
+    }
 }
 
 impl Blockchain {
@@ -59,9 +86,7 @@ impl Blockchain {
         true
     }
 
-    pub fn append_block(&mut self, nonce: u32, previous_hash: Option<Digest>)
-        -> Block {
-
+    pub fn append_block(&mut self, nonce: u32, previous_hash: Option<Digest>) {
         let new_block = Block {
             ind: self.chain.len() + 1,
             timestamp: Utc::now(),
@@ -69,23 +94,37 @@ impl Blockchain {
             nonce,
             previous_hash: {
                 if let Some(digest) = previous_hash {
+                    // If one was passed as an argument, use it instead of
+                    // looking at the chain
                     Some(digest)
                 } else {
                     if let Some(block) = self.chain.last() {
-                        // Compute the digest
-                        let serialized: Vec<u8> = serialize(block).unwrap();
-                        let hash::sha256::Digest(ref digest) = hash::sha256::hash(&serialized);
+                        // Compute the digest of the last block
+                        let digest = block.hash();
 
-                        let owned_digest = digest.to_vec();
-
-                        Some(owned_digest)
+                        Some(digest)
                     } else {
-                        panic!("No previous hash")
+                        // There should always be a previous hash.
+                        // For the genesis block, one is chosen arbitrarily and passed
+                        // as an argument. Otherwise, there is always an earlier block.
+                        panic!("No previous hash!")
                     }
                 }
             },
         };
 
-        new_block
+        // Empty the list of pending transactions
+        self.pending_transactions = vec![];
+
+        // Push the confirmed transactions onto the chain
+        self.chain.push(new_block);
+    }
+
+    pub fn is_valid_nonce(last: Nonce, current: Nonce, prev_digest: &Digest) -> bool {
+        // Compute the digest
+        let serialized = serialize(&(last, current, prev_digest)).unwrap();
+        let hash::sha256::Digest(ref digest) = hash::sha256::hash(&serialized);
+
+        &digest[0..4] == &[0,0,0,0]
     }
 }
