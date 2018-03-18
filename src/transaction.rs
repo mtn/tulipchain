@@ -6,7 +6,6 @@ use super::{
     PublicKey,
     PrivateKey,
     SignedDigest,
-    Digest,
 };
 
 
@@ -27,7 +26,7 @@ impl Transaction {
     }
 
     // Ensures that the a signature is valid for a given transaction
-    pub fn verify_transaction(&self, signed_digest: SignedDigest)
+    pub fn verify_digest(&self, signed_digest: SignedDigest)
         -> bool {
 
         // Compute the digest

@@ -2,13 +2,13 @@
 extern crate serde_derive;
 extern crate bincode;
 extern crate sodiumoxide;
+extern crate rand;
 
 mod transaction;
 mod blockchain;
 mod address;
 
 type Tulips = u32;
-type Digest<'a> = &'a[u8];
 type SignedDigest = Vec<u8>;
 
 use sodiumoxide::crypto::sign;
@@ -26,9 +26,8 @@ fn main() {
     // let encoded: Vec<u8> = serialize(&transaction).unwrap();
     // println!("{:?}", encoded);
     // println!("{:?}", encoded.len());
-    //
     let signed = transaction.sign(private);
-    let res = transaction.verify_transaction(signed);
+    let res = transaction.verify_digest(signed);
     println!("res {}", res);
     // println!("{:?}", pk);
     // let data_to_sign = b"some data";
