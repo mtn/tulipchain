@@ -20,8 +20,8 @@ const GENESIS_PREV_NONCE: u32 = 0;
 pub struct Block {
     ind: usize,
     timestamp: DateTime<Utc>,
-    transactions: Vec<Transaction>,
-    previous_hash: Option<Digest>,
+    pub transactions: Vec<Transaction>,
+    pub previous_hash: Option<Digest>,
 
     #[serde(skip)]
     pub nonce: Nonce,
@@ -29,7 +29,7 @@ pub struct Block {
 
 #[derive(Debug)]
 pub struct Blockchain {
-    pending_transactions: Vec<Transaction>,
+    pub pending_transactions: Vec<Transaction>,
     pub chain: Vec<Block>,
 
     // Peers gossip to maintain synchronization
@@ -144,13 +144,6 @@ impl Blockchain {
         self.chain.push(new_block);
     }
 
-    // Returns the current last block in the chain
-    // Because the blockchain is created a genesis block (so there will
-    // always be at least one block), the option is unwrapped.
-    pub fn last_block(&self) -> &Block {
-        self.chain.last().unwrap()
-    }
-
     // Checks if a nonce is valid according to the mining condition
     pub fn is_valid_nonce(last: Nonce, current: Nonce, prev_digest: &Option<Digest>)
         -> bool {
@@ -161,7 +154,6 @@ impl Blockchain {
 
         // Requiring more than the first 2 digits to be zeros resulting in very large
         // time to find the nonce for a toy implementation.
-        println!("Returning {}", &digest[0..2] == &[0,0]);
         &digest[0..2] == &[0,0]
     }
 
@@ -211,5 +203,12 @@ impl Blockchain {
         }
 
         nonce
+    }
+
+    pub fn get_last_nonce(&self) -> Nonce {
+        // There will always be at least one block, so it's safe to unwrap
+        let last_block = self.chain.last().unwrap();
+
+        last_block.nonce
     }
 }

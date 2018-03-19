@@ -5,8 +5,8 @@ use super::{
     blockchain,
 };
 
-// After signing a transaction with a users private key,
-// we should be able to verify that user signed it. If the user didn't, the verification should fail.
+// After signing a transaction with a users private key, we should be able to verify
+// that user signed it. If the user didn't, the verification should fail.
 #[test]
 fn test_signing() {
     // Create a pair of address
@@ -60,11 +60,19 @@ fn test_proof_of_work() {
     let transaction = src_address.new_transaction(0, dest_address.public_key);
 
     // Ensure the transaction is added to the list of pending transactions successfully
+    let transaction_clone = transaction.clone();
     assert!(blockchain.append_transaction(transaction));
+    assert!(transaction_clone == blockchain.pending_transactions[0]);
 
+    let last_nonce = blockchain.get_last_nonce();
     // Find a nonce to add the block to the chain
-    // blockchain::Blockchain::find_nonce();
-    // Create a new block contiaining (just) this transaction which will be added
-    // to the chain
-    // assert!(blockchain.append_block())
+    let nonce = blockchain::Blockchain::find_nonce(last_nonce, &None);
+
+    // Add a new block to the chain using the nonce that was found
+    blockchain.append_block(nonce, None);
+
+    // Ensure that the block got added and that it contains the transaction
+    assert!(blockchain.chain.len() == 2);
+    // With a mining abstraction, there will be an additional coinbase transaction
+    assert!(blockchain.chain.last().unwrap().transactions.len() == 1);
 }
