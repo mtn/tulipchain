@@ -2,6 +2,7 @@ use super::transaction::Transaction;
 use super::{
     SignedDigest,
     Digest,
+    PublicKey,
 };
 
 use sodiumoxide::crypto::{sign, hash};
@@ -13,22 +14,28 @@ use rand;
 
 type Nonce = u32;
 
-#[derive(Serialize)]
-struct Block {
+const GENESIS_PREV_NONCE: u32 = 0;
+
+#[derive(Debug, Serialize)]
+pub struct Block {
     ind: usize,
     timestamp: DateTime<Utc>,
     transactions: Vec<Transaction>,
-    nonce: Nonce,
     previous_hash: Option<Digest>,
+
+    #[serde(skip)]
+    pub nonce: Nonce,
 }
 
+#[derive(Debug)]
 pub struct Blockchain {
     pending_transactions: Vec<Transaction>,
-    chain: Vec<Block>,
+    pub chain: Vec<Block>,
 
     // Peers gossip to maintain synchronization
     peers: HashSet<u32>,
-    id: u32,
+    // Identifier of the node running that blockchain instance
+    node_id: u32,
 }
 
 impl Block {
@@ -40,30 +47,40 @@ impl Block {
         digest.to_vec()
     }
 
-    // Finds a nonce to satisfy the mining problem.
-    // This function should be called on the last block in the chain before the one
-    // we want to add.
-    pub fn find_nonce(&self, previous_nonce: Nonce) -> Nonce {
-        let block_hash = &self.hash();
+    pub fn create_genesis_block() -> Block {
+        let mut genesis_block = Block {
+            ind: 0,
+            timestamp: Utc::now(),
+            transactions: vec![],
+            previous_hash: None,
+            nonce: 0,
+        };
 
-        let mut nonce = 0;
-        while !Blockchain::is_valid_nonce(previous_nonce, nonce, block_hash) {
-            nonce += 1;
-        }
+        // The previous nonce of the genesis block is set by convention
+        genesis_block.nonce = Blockchain::find_nonce(GENESIS_PREV_NONCE,
+                                                     &genesis_block.previous_hash);
 
-        nonce
+        genesis_block
     }
 }
 
 impl Blockchain {
+    // Creates a new blockchain, including a genesis block.
+    // The genesis block (including nonce) will be identical for all new chains.
     pub fn new() -> Blockchain {
-        Blockchain {
+        let mut blockchain = Blockchain {
             pending_transactions: vec![],
             chain: vec![],
 
             peers: HashSet::new(),
-            id: rand::random::<u32>(),
-        }
+            node_id: rand::random::<u32>(),
+        };
+
+        // Create the genesis block and start the chain
+        let genesis_block = Block::create_genesis_block();
+        blockchain.chain.push(genesis_block);
+
+        blockchain
     }
 
     // Registers a new mining peer
@@ -77,7 +94,7 @@ impl Blockchain {
                               signed_digest: SignedDigest) -> bool {
         // Check that the transaction is valid
         if !transaction.verify_digest(signed_digest) {
-            return false;
+            return false
         }
 
         // Since it is, append it to the list of pending transaction
@@ -86,6 +103,7 @@ impl Blockchain {
         true
     }
 
+    // Appends a new block to the chain, or starts the chain
     pub fn append_block(&mut self, nonce: u32, previous_hash: Option<Digest>) {
         let new_block = Block {
             ind: self.chain.len() + 1,
@@ -120,11 +138,71 @@ impl Blockchain {
         self.chain.push(new_block);
     }
 
-    pub fn is_valid_nonce(last: Nonce, current: Nonce, prev_digest: &Digest) -> bool {
+    // Returns the current last block in the chain
+    // Because the blockchain is created a genesis block (so there will
+    // always be at least one block), the option is unwrapped.
+    pub fn last_block(&self) -> &Block {
+        self.chain.last().unwrap()
+    }
+
+    // Checks if a nonce is valid according to the mining condition
+    pub fn is_valid_nonce(last: Nonce, current: Nonce, prev_digest: &Option<Digest>)
+        -> bool {
+
         // Compute the digest
         let serialized = serialize(&(last, current, prev_digest)).unwrap();
         let hash::sha256::Digest(ref digest) = hash::sha256::hash(&serialized);
 
-        &digest[0..4] == &[0,0,0,0]
+        // Requiring more than the first 2 digits to be zeros resulting in very large
+        // time to find the nonce for a toy implementation.
+        println!("Returning {}", &digest[0..2] == &[0,0]);
+        &digest[0..2] == &[0,0]
+    }
+
+    // Checks whether the chain is valid or not by check the nonce of each block
+    pub fn is_valid_chain(&self) -> bool {
+        for (i, block) in self.chain.iter().enumerate() {
+            // The genesis block is handled explicitly because of it's hardcoded
+            // previous nonce.
+            if i == 0 {
+                if !Self::is_valid_nonce(GENESIS_PREV_NONCE,
+                                         block.nonce,
+                                         &block.previous_hash) {
+                    return false
+                }
+            } else {
+                let previous_nonce = self.chain[i-1].nonce;
+                if !Self::is_valid_nonce(previous_nonce,
+                                         block.nonce,
+                                         &block.previous_hash) {
+                    return false
+                }
+            }
+        }
+
+        true
+    }
+
+    // Private function to create a coinbase transaction when blocks are mined
+    fn create_coinbase_transaction(recipient_addr: PublicKey) -> Transaction {
+        Transaction {
+            sender_addr: None,
+            recipient_addr,
+            value: 1,
+        }
+    }
+
+    // Finds a nonce that satisfies the mining condition for the next block.
+    // Note: it doesn't depend on the contents of the block that being added.
+    pub fn find_nonce(previous_nonce: Nonce, previous_hash: &Option<Digest>)
+        -> Nonce {
+        // If there is no previous hash, then the block isn't getting added onto a chain
+        let mut nonce = 0;
+        while !Blockchain::is_valid_nonce(previous_nonce, nonce, previous_hash) {
+            println!("Searching for nonce {}", nonce);
+            nonce += 1;
+        }
+
+        nonce
     }
 }

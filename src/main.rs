@@ -21,5 +21,7 @@ type PublicKey = sign::ed25519::PublicKey;
 type PrivateKey = sign::ed25519::SecretKey;
 
 fn main() {
+    let blockchain = blockchain::Blockchain::new();
+
     println!("Hello, world!");
 }

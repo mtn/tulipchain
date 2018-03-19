@@ -9,9 +9,10 @@ use super::{
 };
 
 
-#[derive(Serialize, Clone)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Transaction {
-    pub sender_addr: PublicKey,
+    // Coinbase transactions have no sender
+    pub sender_addr: Option<PublicKey>,
     pub recipient_addr: PublicKey,
     pub value: Tulips,
 }
@@ -33,10 +34,12 @@ impl Transaction {
         let serialized: Vec<u8> = serialize(self).unwrap();
         let hash::sha256::Digest(ref digest) = hash::sha256::hash(&serialized);
 
-        if let Ok(verified_data) = sign::verify(&signed_digest, &self.sender_addr) {
+        if let Ok(verified_data) = sign::verify(&signed_digest,
+                                                &self.sender_addr.unwrap()) {
             return digest == &verified_data[..]
         }
 
         false
     }
+
 }

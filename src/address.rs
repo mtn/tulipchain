@@ -9,6 +9,7 @@ use super::{
 
 use transaction::Transaction;
 
+#[derive(Debug)]
 pub struct Address {
     pub public_key: PublicKey,
     private_key: PrivateKey,
@@ -33,7 +34,7 @@ impl Address {
         -> (Transaction, SignedDigest) {
 
         let transaction = Transaction {
-            sender_addr: self.public_key,
+            sender_addr: Some(self.public_key),
             recipient_addr,
             value,
         };
