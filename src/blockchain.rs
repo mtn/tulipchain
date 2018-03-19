@@ -62,6 +62,13 @@ impl Block {
 
         genesis_block
     }
+
+    // Check that all the transactions inside a block are valid
+    pub fn validate_transactions(&self) -> bool {
+        // for transaction in self.transactions {
+        // }
+        unimplemented!()
+    }
 }
 
 impl Blockchain {
@@ -90,10 +97,9 @@ impl Blockchain {
 
     // Verifies the transaction signature and adds it to the
     // list of pending transactions
-    pub fn append_transaction(&mut self, transaction: Transaction,
-                              signed_digest: SignedDigest) -> bool {
+    pub fn append_transaction(&mut self, transaction: Transaction) -> bool {
         // Check that the transaction is valid
-        if !transaction.verify_digest(signed_digest) {
+        if !transaction.verify_digest() {
             return false
         }
 
@@ -189,6 +195,7 @@ impl Blockchain {
             sender_addr: None,
             recipient_addr,
             value: 1,
+            signed_digest: None,
         }
     }
 

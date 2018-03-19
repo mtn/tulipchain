@@ -30,17 +30,19 @@ impl Address {
     }
 
     // TODO check account balance and stuff
+    // Returns a signed transaction
     pub fn new_transaction(&self, value: Tulips, recipient_addr: PublicKey)
-        -> (Transaction, SignedDigest) {
+        -> Transaction {
 
-        let transaction = Transaction {
+        let mut transaction = Transaction {
             sender_addr: Some(self.public_key),
             recipient_addr,
             value,
+            signed_digest: None,
         };
 
-        let signed_digest = transaction.sign(&self.private_key);
+        transaction.sign(&self.private_key);
 
-        (transaction, signed_digest)
+        transaction
     }
 }

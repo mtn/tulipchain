@@ -10,29 +10,30 @@ use super::{
 #[test]
 fn test_signing() {
     // Create a pair of address
-    let mut src_address = address::Address::new();
-    let mut dest_address = address::Address::new();
+    let src_address = address::Address::new();
+    let dest_address = address::Address::new();
 
     // Create a new transaction from source to destination
     // Because the sending account has 0 balance, the sending value is 0 tulips
-    let (transaction, digest) = src_address.new_transaction(0, dest_address.public_key);
+    let transaction = src_address.new_transaction(0, dest_address.public_key);
 
     // Verify that the transaction signature was signed by the private key of the sender
-    assert!(transaction.verify_digest(digest));
+    assert!(transaction.verify_digest());
 
     // Now, check that dest_address's attempt at tulip theft(!) is detected
-    let forged_transaction = transaction::Transaction {
+    let mut forged_transaction = transaction::Transaction {
         sender_addr: Some(src_address.public_key),
         recipient_addr: dest_address.public_key,
         value: 100,
+        signed_digest: None,
     };
 
     // The desination generates a private key and uses it to sign the transaction
     let (_public_key, private_key) = sign::gen_keypair();
-    let forged_digest = forged_transaction.sign(&private_key);
+    forged_transaction.sign(&private_key);
 
     // Tulip theft averted!
-    assert!(!transaction.verify_digest(forged_digest));
+    assert!(!forged_transaction.verify_digest());
 }
 
 #[test]
@@ -54,11 +55,16 @@ fn test_proof_of_work() {
     assert!(blockchain.is_valid_chain());
 
     // Create a new zero-value transaction between two addresses and add it to the chain
-    let mut src_address = address::Address::new();
-    let mut dest_address = address::Address::new();
-    let (transaction, digest) = src_address.new_transaction(0, dest_address.public_key);
+    let src_address = address::Address::new();
+    let dest_address = address::Address::new();
+    let transaction = src_address.new_transaction(0, dest_address.public_key);
 
     // Ensure the transaction is added to the list of pending transactions successfully
-    assert!(blockchain.append_transaction(transaction, digest));
+    assert!(blockchain.append_transaction(transaction));
 
+    // Find a nonce to add the block to the chain
+    // blockchain::Blockchain::find_nonce();
+    // Create a new block contiaining (just) this transaction which will be added
+    // to the chain
+    // assert!(blockchain.append_block())
 }
