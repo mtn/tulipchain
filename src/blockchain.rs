@@ -13,12 +13,11 @@ use rand;
 
 
 type Nonce = u32;
+type NodeAddr = String;
 
 const GENESIS_PREV_NONCE: u32 = 0;
-// Each node gossips with at most 4 other nodes
-const PEER_GROUP_SIZE_LIM: u32 = 4;
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Block {
     ind: usize,
     timestamp: DateTime<Utc>,
@@ -29,15 +28,13 @@ pub struct Block {
     pub nonce: Nonce,
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Blockchain {
     pub pending_transactions: Vec<Transaction>,
     pub chain: Vec<Block>,
 
     // Peers gossip to maintain synchronization
-    peers: HashSet<u32>,
-    // Identifier of the node running that blockchain instance
-    node_id: u32,
+    pub peers: HashSet<NodeAddr>,
 }
 
 impl Block {
@@ -86,7 +83,6 @@ impl Blockchain {
             chain: vec![],
 
             peers: HashSet::new(),
-            node_id: rand::random::<u32>(),
         };
 
         // Create the genesis block and start the chain
@@ -97,8 +93,8 @@ impl Blockchain {
     }
 
     // Registers a new mining peer
-    pub fn register_peer(&mut self, id: u32) {
-        self.peers.insert(id);
+    pub fn register_peer(&mut self, addr: NodeAddr) {
+        self.peers.insert(addr);
     }
 
     // Verifies the transaction signature and adds it to the

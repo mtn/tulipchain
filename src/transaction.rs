@@ -9,7 +9,7 @@ use super::{
 };
 
 
-#[derive(Debug, Serialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Transaction {
     // Coinbase transactions have no sender
     pub sender_addr: Option<PublicKey>,
