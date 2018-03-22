@@ -15,8 +15,10 @@ use rand;
 type Nonce = u32;
 
 const GENESIS_PREV_NONCE: u32 = 0;
+// Each node gossips with at most 4 other nodes
+const PEER_GROUP_SIZE_LIM: u32 = 4;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Block {
     ind: usize,
     timestamp: DateTime<Utc>,
@@ -27,7 +29,7 @@ pub struct Block {
     pub nonce: Nonce,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Blockchain {
     pub pending_transactions: Vec<Transaction>,
     pub chain: Vec<Block>,
@@ -65,9 +67,13 @@ impl Block {
 
     // Check that all the transactions inside a block are valid
     pub fn validate_transactions(&self) -> bool {
-        // for transaction in self.transactions {
-        // }
-        unimplemented!()
+        for transaction in &self.transactions {
+            if !transaction.verify_digest() {
+                return false
+            }
+        }
+
+        true
     }
 }
 
@@ -198,10 +204,13 @@ impl Blockchain {
         // If there is no previous hash, then the block isn't getting added onto a chain
         let mut nonce = 0;
         while !Blockchain::is_valid_nonce(previous_nonce, nonce, previous_hash) {
-            println!("Searching for nonce {}", nonce);
+            if nonce % 1000 == 0 {
+                println!("Searching for nonce {}", nonce);
+            }
             nonce += 1;
         }
 
+        println!("Nonce found: {}", nonce);
         nonce
     }
 

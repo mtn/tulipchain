@@ -34,8 +34,11 @@ impl Transaction {
     pub fn verify_digest(&self)
         -> bool {
 
+        // If the transaction is unsigned and isn't a coinbase transaction, it's invalid.
         if let None = self.signed_digest {
-            return false
+            if let Some(_) = self.sender_addr {
+                return false
+            }
         }
 
         // Compute the digest
