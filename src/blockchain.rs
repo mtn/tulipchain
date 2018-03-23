@@ -1,13 +1,13 @@
 use super::transaction::Transaction;
+use super::address::Address;
 use super::{
-    SignedDigest,
     Digest,
     PublicKey,
     ServerConfig,
 };
 
 use reqwest::header::{Headers, ContentType};
-use sodiumoxide::crypto::{sign, hash};
+use sodiumoxide::crypto::hash;
 use std::collections::HashSet;
 use bincode::serialize;
 use chrono::prelude::*;
@@ -29,6 +29,9 @@ pub struct Block {
     pub transactions: Vec<Transaction>,
     pub previous_hash: Option<Digest>,
 
+    // The coinbase hash can be verified
+    pub coinbase_transaction: Transaction,
+
     #[serde(skip)]
     pub nonce: Nonce,
 }
@@ -37,6 +40,10 @@ pub struct Block {
 pub struct Blockchain {
     pub pending_transactions: Vec<Transaction>,
     pub chain: Vec<Block>,
+
+    // Each node holds an address in order to receive transaction, etc.
+    #[serde(skip)]
+    pub address: Address,
 
     // Peers gossip to maintain synchronization
     pub peers: HashSet<NodeAddr>,
@@ -49,22 +56,6 @@ impl Block {
         let hash::sha256::Digest(ref digest) = hash::sha256::hash(&serialized);
 
         digest.to_vec()
-    }
-
-    pub fn create_genesis_block() -> Block {
-        let mut genesis_block = Block {
-            ind: 0,
-            timestamp: Utc::now(),
-            transactions: vec![],
-            previous_hash: None,
-            nonce: 0,
-        };
-
-        // The previous nonce of the genesis block is set by convention
-        genesis_block.nonce = Blockchain::find_nonce(GENESIS_PREV_NONCE,
-                                                     &genesis_block.previous_hash);
-
-        genesis_block
     }
 
     // Check that all the transactions inside a block are valid
@@ -87,15 +78,41 @@ impl Blockchain {
             pending_transactions: vec![],
             chain: vec![],
 
+            address: Address::new(),
             peers: HashSet::new(),
         };
 
         // Create the genesis block and start the chain
-        let genesis_block = Block::create_genesis_block();
+        let genesis_block = blockchain.create_genesis_block();
         blockchain.chain.push(genesis_block);
 
         blockchain
     }
+
+    pub fn create_genesis_block(&self) -> Block {
+        let coinbase_transaction = Transaction {
+            sender_addr: None,
+            recipient_addr: self.address.public_key,
+            value: 1,
+            signed_digest: None,
+        };
+
+        let mut genesis_block = Block {
+            ind: 0,
+            timestamp: Utc::now(),
+            transactions: vec![],
+            previous_hash: None,
+            nonce: 0,
+            coinbase_transaction,
+        };
+
+        // The previous nonce of the genesis block is set by convention
+        genesis_block.nonce = Blockchain::find_nonce(GENESIS_PREV_NONCE,
+                                                     &genesis_block.previous_hash);
+
+        genesis_block
+    }
+
 
     pub fn init_chain(base_addr: String, config: &ServerConfig) -> RwLock<Blockchain> {
         if base_addr.is_empty() {

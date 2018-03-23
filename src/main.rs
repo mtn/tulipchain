@@ -28,8 +28,6 @@ use rocket_contrib::Json;
 use std::sync::RwLock;
 use rocket::State;
 
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-
 type PublicKey = sign::ed25519::PublicKey;
 type PrivateKey = sign::ed25519::SecretKey;
 

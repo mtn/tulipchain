@@ -3,13 +3,11 @@ use super::{
     Tulips,
     PublicKey,
     PrivateKey,
-    transaction,
-    SignedDigest,
 };
 
 use transaction::Transaction;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Address {
     pub public_key: PublicKey,
     private_key: PrivateKey,
