@@ -25,7 +25,7 @@ use transaction::Transaction;
 use blockchain::Blockchain;
 use rocket::fairing::AdHoc;
 use rocket_contrib::Json;
-use std::process::exit;
+use rocket::http::RawStr;
 use std::sync::RwLock;
 use rocket::State;
 
@@ -38,7 +38,7 @@ type SignedDigest = Vec<u8>;
 type Digest = Vec<u8>;
 type Tulips = u32;
 
-struct ServerConfig {
+pub struct ServerConfig {
     address: String,
     port: u16,
 }
@@ -50,8 +50,8 @@ fn full_blockchain(blockchain: State<RwLock<Blockchain>>) -> Json<Blockchain> {
     Json(blockchain.read().unwrap().clone())
 }
 
-#[get("/join")]
-fn join(blockchain: State<RwLock<Blockchain>>, addr: SocketAddr) -> Json<Blockchain> {
+#[post("/join")]
+fn join(blockchain: State<RwLock<Blockchain>>, body: RawStr) -> Json<Blockchain> {
     // Clone the blockchain before adding the new node to the peer list
     let mut to_transmit = blockchain.read().unwrap().clone();
 
@@ -61,15 +61,15 @@ fn join(blockchain: State<RwLock<Blockchain>>, addr: SocketAddr) -> Json<Blockch
     // Add the source address to the list of peers
     let mut block_writer = blockchain.write().unwrap();
 
-    let addr_ip_str = addr.ip().to_string();
-    let source_ip = if addr_ip_str == "::1" {
-        "localhost".to_string()
-    } else {
-        addr_ip_str
-    };
+//     let addr_ip_str = addr.ip().to_string();
+//     let source_ip = if addr_ip_str == "::1" {
+//         "localhost".to_string()
+//     } else {
+//         addr_ip_str
+//     };
 
-    let source_address = format!("{}:{}", source_ip, addr.port());
-    block_writer.register_peer(source_address);
+    // let source_address = format!("{}:{}", source_ip, addr.port());
+    // block_writer.register_peer(source_address);
 
     Json(to_transmit)
 }
@@ -102,51 +102,18 @@ fn main() {
         ap.parse_args_or_exit();
     }
 
-    let chain: RwLock<Blockchain> = if base_addr.is_empty() {
-        println!("No input node provided, creating new blockchain instance");
-        RwLock::new(Blockchain::new())
-    } else {
-        // Try to get blockchain from the source node using a http request
-        let join_url = format!("{}/join", base_addr);
-
-        let request_result = reqwest::get(&join_url);
-        if let Err(_) = request_result {
-            println!("An error occured while making a request to the source node");
-            exit(1);
-        }
-
-        // Look into the text of the request result
-        let request_text_result = request_result.unwrap().text();
-        if let Err(_) = request_text_result {
-            println!("An error occured while reading the response from the source node");
-            exit(1);
-        }
-
-        // Text holds the serialized blockchain
-        let text = request_text_result.unwrap();
-
-        let deserialized: Result<blockchain::Blockchain, _> = serde_json::from_str(&text);
-        if let Err(_) = deserialized {
-            println!("An error occured while deserializing the blockchain");
-            exit(1);
-        }
-
-        let mut chain = deserialized.unwrap();
-        chain.register_peer(base_addr);
-
-        RwLock::new(chain)
-    };
-
     rocket::ignite()
-        .attach(AdHoc::on_attach(|rocket| {
+        .attach(AdHoc::on_attach(move |rocket| {
             let config = rocket.config().clone();
-
-            return Ok(rocket.manage(ServerConfig {
+            let server_config = ServerConfig {
                 address: config.address,
                 port: config.port,
-            }))
+            };
+
+            let chain: RwLock<Blockchain> = Blockchain::init_chain(base_addr.clone(),
+                                                                   &server_config);
+            return Ok(rocket.manage(chain))
         }))
-        .manage(chain)
         .mount("/", routes![index,
                join,
                full_blockchain,

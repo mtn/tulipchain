@@ -3,13 +3,17 @@ use super::{
     SignedDigest,
     Digest,
     PublicKey,
+    ServerConfig,
 };
 
 use sodiumoxide::crypto::{sign, hash};
 use std::collections::HashSet;
 use bincode::serialize;
 use chrono::prelude::*;
-use rand;
+use std::process::exit;
+use std::sync::RwLock;
+use serde_json;
+use reqwest;
 
 
 type Nonce = u32;
@@ -90,6 +94,48 @@ impl Blockchain {
         blockchain.chain.push(genesis_block);
 
         blockchain
+    }
+
+    pub fn init_chain(base_addr: String, config: &ServerConfig) -> RwLock<Blockchain> {
+        if base_addr.is_empty() {
+            println!("No input node provided, creating new blockchain instance");
+            return RwLock::new(Blockchain::new())
+        }
+
+        // Try to get blockchain from the source node using a http request
+        let join_url = format!("{}/join", base_addr);
+
+        // Create a client and send a request to to join
+        let client = reqwest::Client::new();
+        let request_result = client.post(&join_url).body(format!("{}:{}",
+                                                                 config.address,
+                                                                 config.port))
+                                                    .send();
+        if let Err(_) = request_result {
+            println!("An error occured while making a request to the source node");
+            exit(1);
+        }
+
+        // Look into the text of the request result
+        let request_text_result = request_result.unwrap().text();
+        if let Err(_) = request_text_result {
+            println!("An error occured while reading the response from the source node");
+            exit(1);
+        }
+
+        // Text holds the serialized blockchain
+        let text = request_text_result.unwrap();
+
+        let deserialized: Result<Blockchain, _> = serde_json::from_str(&text);
+        if let Err(_) = deserialized {
+            println!("An error occured while deserializing the blockchain");
+            exit(1);
+        }
+
+        let mut chain = deserialized.unwrap();
+        chain.register_peer(base_addr);
+
+        RwLock::new(chain)
     }
 
     // Registers a new mining peer
