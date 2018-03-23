@@ -30,7 +30,7 @@ pub struct Block {
     pub previous_hash: Option<Digest>,
 
     // The coinbase hash can be verified
-    pub coinbase_hash: Digest,
+    pub coinbase_transaction: Transaction,
 
     #[serde(skip)]
     pub nonce: Nonce,
@@ -78,6 +78,7 @@ impl Blockchain {
             pending_transactions: vec![],
             chain: vec![],
 
+            address: Address::new(),
             peers: HashSet::new(),
         };
 
@@ -91,9 +92,9 @@ impl Blockchain {
     pub fn create_genesis_block(&self) -> Block {
         let coinbase_transaction = Transaction {
             sender_addr: None,
-            recipient_addr: PublicKey,
-            value: Tulips,
-            signed_digest: Option<SignedDigest>,
+            recipient_addr: self.address.public_key,
+            value: 1,
+            signed_digest: None,
         };
 
         let mut genesis_block = Block {
@@ -102,7 +103,7 @@ impl Blockchain {
             transactions: vec![],
             previous_hash: None,
             nonce: 0,
-            coinbase_hash,
+            coinbase_transaction,
         };
 
         // The previous nonce of the genesis block is set by convention
