@@ -3,8 +3,6 @@ use super::{
     Tulips,
     PublicKey,
     PrivateKey,
-    transaction,
-    SignedDigest,
 };
 
 use transaction::Transaction;

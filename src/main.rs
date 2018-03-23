@@ -28,7 +28,6 @@ use rocket_contrib::Json;
 use std::sync::RwLock;
 use rocket::State;
 
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 type PublicKey = sign::ed25519::PublicKey;
 type PrivateKey = sign::ed25519::SecretKey;
@@ -77,7 +76,7 @@ fn join(blockchain: State<RwLock<Blockchain>>, addr: Json<ServerConfig>)
 #[get("/transactions/new")]
 fn new_transaction(blockchain: State<Blockchain>) -> Json<Transaction> {
     unimplemented!()
-        // serde_json::to_string(&blockchain.chain).unwrap()
+    // serde_json::to_string(&blockchain.chain).unwrap()
 }
 
 #[get("/mine")]
