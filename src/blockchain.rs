@@ -6,6 +6,7 @@ use super::{
     ServerConfig,
 };
 
+use reqwest::header::{Headers, ContentType};
 use sodiumoxide::crypto::{sign, hash};
 use std::collections::HashSet;
 use bincode::serialize;
@@ -107,10 +108,16 @@ impl Blockchain {
 
         // Create a client and send a request to to join
         let client = reqwest::Client::new();
-        let request_result = client.post(&join_url).body(format!("{}:{}",
-                                                                 config.address,
-                                                                 config.port))
-                                                    .send();
+        let serialized_config = serde_json::to_string(config).unwrap();
+        println!("serialized config {}", serialized_config);
+
+        let mut headers = Headers::new();
+        headers.set(ContentType::json());
+        let request_result = client.post(&join_url)
+                                   .headers(headers)
+                                   .body(serialized_config)
+                                   .send();
+
         if let Err(_) = request_result {
             println!("An error occured while making a request to the source node");
             exit(1);
@@ -125,6 +132,7 @@ impl Blockchain {
 
         // Text holds the serialized blockchain
         let text = request_text_result.unwrap();
+        println!("text {}", text);
 
         let deserialized: Result<Blockchain, _> = serde_json::from_str(&text);
         if let Err(_) = deserialized {
@@ -261,5 +269,9 @@ impl Blockchain {
         let last_block = self.chain.last().unwrap();
 
         last_block.nonce
+    }
+
+    pub fn transmit_message(&self) {
+        unimplemented!();
     }
 }

@@ -25,7 +25,6 @@ use transaction::Transaction;
 use blockchain::Blockchain;
 use rocket::fairing::AdHoc;
 use rocket_contrib::Json;
-use rocket::http::RawStr;
 use std::sync::RwLock;
 use rocket::State;
 
@@ -38,6 +37,7 @@ type SignedDigest = Vec<u8>;
 type Digest = Vec<u8>;
 type Tulips = u32;
 
+#[derive(Deserialize, Serialize)]
 pub struct ServerConfig {
     address: String,
     port: u16,
@@ -50,8 +50,10 @@ fn full_blockchain(blockchain: State<RwLock<Blockchain>>) -> Json<Blockchain> {
     Json(blockchain.read().unwrap().clone())
 }
 
-#[post("/join")]
-fn join(blockchain: State<RwLock<Blockchain>>, body: RawStr) -> Json<Blockchain> {
+#[post("/join", data = "<addr>")]
+fn join(blockchain: State<RwLock<Blockchain>>, addr: Json<ServerConfig>)
+    -> Json<Blockchain> {
+
     // Clone the blockchain before adding the new node to the peer list
     let mut to_transmit = blockchain.read().unwrap().clone();
 
@@ -61,15 +63,13 @@ fn join(blockchain: State<RwLock<Blockchain>>, body: RawStr) -> Json<Blockchain>
     // Add the source address to the list of peers
     let mut block_writer = blockchain.write().unwrap();
 
-//     let addr_ip_str = addr.ip().to_string();
-//     let source_ip = if addr_ip_str == "::1" {
-//         "localhost".to_string()
-//     } else {
-//         addr_ip_str
-//     };
+    let source_config = addr.into_inner();
+    let mut source_str = format!("{}:{}", source_config.address, source_config.port);
+    if !source_str.contains("http://") {
+        source_str = format!("http://{}", source_str);
+    }
 
-    // let source_address = format!("{}:{}", source_ip, addr.port());
-    // block_writer.register_peer(source_address);
+    block_writer.register_peer(source_str);
 
     Json(to_transmit)
 }
