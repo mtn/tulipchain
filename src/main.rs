@@ -52,25 +52,25 @@ fn full_blockchain(blockchain: State<RwLock<Blockchain>>) -> Json<Blockchain> {
 fn join(blockchain: State<RwLock<Blockchain>>, addr: Json<ServerConfig>)
     -> Json<Blockchain> {
 
-    // Clone the blockchain before adding the new node to the peer list
-    let mut to_transmit = blockchain.read().unwrap().clone();
+        // Clone the blockchain before adding the new node to the peer list
+        let mut to_transmit = blockchain.read().unwrap().clone();
 
-    // Empty the peer list before transmitting the blockchain.
-    to_transmit.peers = HashSet::new();
+        // Empty the peer list before transmitting the blockchain.
+        to_transmit.peers = HashSet::new();
 
-    // Add the source address to the list of peers
-    let mut block_writer = blockchain.write().unwrap();
+        // Add the source address to the list of peers
+        let mut block_writer = blockchain.write().unwrap();
 
-    let source_config = addr.into_inner();
-    let mut source_str = format!("{}:{}", source_config.address, source_config.port);
-    if !source_str.contains("http://") {
-        source_str = format!("http://{}", source_str);
+        let source_config = addr.into_inner();
+        let mut source_str = format!("{}:{}", source_config.address, source_config.port);
+        if !source_str.contains("http://") {
+            source_str = format!("http://{}", source_str);
+        }
+
+        block_writer.register_peer(source_str);
+
+        Json(to_transmit)
     }
-
-    block_writer.register_peer(source_str);
-
-    Json(to_transmit)
-}
 
 #[get("/transactions/new")]
 fn new_transaction(blockchain: State<Blockchain>) -> Json<Transaction> {
@@ -109,13 +109,13 @@ fn main() {
             };
 
             let chain: RwLock<Blockchain> = Blockchain::init_chain(base_addr.clone(),
-                                                                   &server_config);
+            &server_config);
             return Ok(rocket.manage(chain))
         }))
-        .mount("/", routes![index,
-               join,
-               full_blockchain,
-               new_transaction,
-               mine_block])
+    .mount("/", routes![index,
+           join,
+           full_blockchain,
+           new_transaction,
+           mine_block])
         .launch();
 }

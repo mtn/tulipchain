@@ -68,11 +68,14 @@ fn test_proof_of_work() {
     // Find a nonce to add the block to the chain
     let nonce = blockchain::Blockchain::find_nonce(last_nonce, &None);
 
+    let payout_addr = blockchain.address.clone().unwrap().public_key;
     // Add a new block to the chain using the nonce that was found
-    blockchain.append_block(nonce, None);
+    blockchain.append_block(nonce, None, payout_addr);
 
     // Ensure that the block got added and that it contains the transaction
     assert!(blockchain.chain.len() == 2);
     // With a mining abstraction, there will be an additional coinbase transaction
     assert!(blockchain.chain.last().unwrap().transactions.len() == 1);
+
+    println!("{:?}", blockchain.chain.last().unwrap());
 }

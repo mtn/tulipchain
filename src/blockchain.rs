@@ -43,7 +43,7 @@ pub struct Blockchain {
 
     // Each node holds an address in order to receive transaction, etc.
     #[serde(skip)]
-    pub address: Address,
+    pub address: Option<Address>,
 
     // Peers gossip to maintain synchronization
     pub peers: HashSet<NodeAddr>,
@@ -78,7 +78,7 @@ impl Blockchain {
             pending_transactions: vec![],
             chain: vec![],
 
-            address: Address::new(),
+            address: Some(Address::new()),
             peers: HashSet::new(),
         };
 
@@ -90,12 +90,8 @@ impl Blockchain {
     }
 
     pub fn create_genesis_block(&self) -> Block {
-        let coinbase_transaction = Transaction {
-            sender_addr: None,
-            recipient_addr: self.address.public_key,
-            value: 1,
-            signed_digest: None,
-        };
+        let coinbase_transaction = Transaction::create_coinbase_transaction(
+            self.address.clone().unwrap().public_key);
 
         let mut genesis_block = Block {
             ind: 0,
@@ -131,9 +127,9 @@ impl Blockchain {
         let mut headers = Headers::new();
         headers.set(ContentType::json());
         let request_result = client.post(&join_url)
-                                   .headers(headers)
-                                   .body(serialized_config)
-                                   .send();
+            .headers(headers)
+            .body(serialized_config)
+            .send();
 
         if let Err(_) = request_result {
             println!("An error occured while making a request to the source node");
@@ -183,12 +179,16 @@ impl Blockchain {
     }
 
     // Appends a new block to the chain, or starts the chain
-    pub fn append_block(&mut self, nonce: u32, previous_hash: Option<Digest>) {
+    pub fn append_block(&mut self, nonce: u32, previous_hash: Option<Digest>,
+                        reward_addr: PublicKey) {
+        let coinbase_transaction = Transaction::create_coinbase_transaction(reward_addr);
+
         let new_block = Block {
             ind: self.chain.len() + 1,
             timestamp: Utc::now(),
             transactions: self.pending_transactions.clone(),
             nonce,
+            coinbase_transaction,
             previous_hash: {
                 if let Some(digest) = previous_hash {
                     // If one was passed as an argument, use it instead of
@@ -221,14 +221,14 @@ impl Blockchain {
     pub fn is_valid_nonce(last: Nonce, current: Nonce, prev_digest: &Option<Digest>)
         -> bool {
 
-        // Compute the digest
-        let serialized = serialize(&(last, current, prev_digest)).unwrap();
-        let hash::sha256::Digest(ref digest) = hash::sha256::hash(&serialized);
+            // Compute the digest
+            let serialized = serialize(&(last, current, prev_digest)).unwrap();
+            let hash::sha256::Digest(ref digest) = hash::sha256::hash(&serialized);
 
-        // Requiring more than the first 2 digits to be zeros resulting in very large
-        // time to find the nonce for a toy implementation.
-        &digest[0..2] == &[0,0]
-    }
+            // Requiring more than the first 2 digits to be zeros resulting in very large
+            // time to find the nonce for a toy implementation.
+            &digest[0..2] == &[0,0]
+        }
 
     // Checks whether the chain is valid or not by check the nonce of each block
     pub fn is_valid_chain(&self) -> bool {
@@ -254,32 +254,22 @@ impl Blockchain {
         true
     }
 
-    // Private function to create a coinbase transaction when blocks are mined
-    fn create_coinbase_transaction(recipient_addr: PublicKey) -> Transaction {
-        Transaction {
-            sender_addr: None,
-            recipient_addr,
-            value: 1,
-            signed_digest: None,
-        }
-    }
-
     // Finds a nonce that satisfies the mining condition for the next block.
     // Note: it doesn't depend on the contents of the block that being added.
     pub fn find_nonce(previous_nonce: Nonce, previous_hash: &Option<Digest>)
         -> Nonce {
-        // If there is no previous hash, then the block isn't getting added onto a chain
-        let mut nonce = 0;
-        while !Blockchain::is_valid_nonce(previous_nonce, nonce, previous_hash) {
-            if nonce % 1000 == 0 {
-                println!("Searching for nonce {}", nonce);
+            // If there is no previous hash, then the block isn't getting added onto a chain
+            let mut nonce = 0;
+            while !Blockchain::is_valid_nonce(previous_nonce, nonce, previous_hash) {
+                if nonce % 1000 == 0 {
+                    println!("Searching for nonce {}", nonce);
+                }
+                nonce += 1;
             }
-            nonce += 1;
-        }
 
-        println!("Nonce found: {}", nonce);
-        nonce
-    }
+            println!("Nonce found: {}", nonce);
+            nonce
+        }
 
     pub fn get_last_nonce(&self) -> Nonce {
         // There will always be at least one block, so it's safe to unwrap

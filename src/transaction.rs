@@ -34,23 +34,32 @@ impl Transaction {
     pub fn verify_digest(&self)
         -> bool {
 
-        // If the transaction is unsigned and isn't a coinbase transaction, it's invalid.
-        if let None = self.signed_digest {
-            if let Some(_) = self.sender_addr {
-                return false
+            // If the transaction is unsigned and isn't a coinbase transaction, it's invalid.
+            if let None = self.signed_digest {
+                if let Some(_) = self.sender_addr {
+                    return false
+                }
             }
+
+            // Compute the digest
+            let serialized: Vec<u8> = serialize(self).unwrap();
+            let hash::sha256::Digest(ref digest) = hash::sha256::hash(&serialized);
+
+            if let Ok(verified_data) = sign::verify(self.signed_digest.clone().unwrap().as_slice(),
+            &self.sender_addr.unwrap()) {
+                return digest == &verified_data[..]
+            }
+
+            false
         }
 
-        // Compute the digest
-        let serialized: Vec<u8> = serialize(self).unwrap();
-        let hash::sha256::Digest(ref digest) = hash::sha256::hash(&serialized);
-
-        if let Ok(verified_data) = sign::verify(self.signed_digest.clone().unwrap().as_slice(),
-                                                &self.sender_addr.unwrap()) {
-            return digest == &verified_data[..]
+    // Creates a coinbase transactions to pay node that found nonce for a block
+    pub fn create_coinbase_transaction(recipient_addr: PublicKey) -> Transaction {
+        Transaction {
+            sender_addr: None,
+            recipient_addr,
+            value: 1,
+            signed_digest: None,
         }
-
-        false
     }
-
 }
