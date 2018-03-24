@@ -1,13 +1,6 @@
-
-use sodiumoxide::crypto::{sign, hash};
+use sodiumoxide::crypto::{hash, sign};
 use bincode::serialize;
-use super::{
-    Tulips,
-    PublicKey,
-    PrivateKey,
-    SignedDigest,
-};
-
+use super::{PrivateKey, PublicKey, SignedDigest, Tulips};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Transaction {
@@ -21,6 +14,19 @@ pub struct Transaction {
 }
 
 impl Transaction {
+    pub fn new(
+        sender_addr: Option<PublicKey>,
+        recipient_addr: PublicKey,
+        value: Tulips,
+    ) -> Transaction {
+        Transaction {
+            sender_addr,
+            recipient_addr,
+            value,
+            signed_digest: None,
+        }
+    }
+
     pub fn sign(&mut self, signing_key: &PrivateKey) {
         let serialized = serialize(self).unwrap();
         let hash::sha256::Digest(ref digest) = hash::sha256::hash(&serialized);
@@ -31,35 +37,30 @@ impl Transaction {
     }
 
     // Ensures that the a signature is valid for a given transaction
-    pub fn verify_digest(&self)
-        -> bool {
-
-            // If the transaction is unsigned and isn't a coinbase transaction, it's invalid.
-            if let None = self.signed_digest {
-                if let Some(_) = self.sender_addr {
-                    return false
-                }
+    pub fn verify_digest(&self) -> bool {
+        // If the transaction is unsigned and isn't a coinbase transaction, it's invalid.
+        if let None = self.signed_digest {
+            if let Some(_) = self.sender_addr {
+                return false;
             }
-
-            // Compute the digest
-            let serialized: Vec<u8> = serialize(self).unwrap();
-            let hash::sha256::Digest(ref digest) = hash::sha256::hash(&serialized);
-
-            if let Ok(verified_data) = sign::verify(self.signed_digest.clone().unwrap().as_slice(),
-            &self.sender_addr.unwrap()) {
-                return digest == &verified_data[..]
-            }
-
-            false
         }
+
+        // Compute the digest
+        let serialized: Vec<u8> = serialize(self).unwrap();
+        let hash::sha256::Digest(ref digest) = hash::sha256::hash(&serialized);
+
+        if let Ok(verified_data) = sign::verify(
+            self.signed_digest.clone().unwrap().as_slice(),
+            &self.sender_addr.unwrap(),
+        ) {
+            return digest == &verified_data[..];
+        }
+
+        false
+    }
 
     // Creates a coinbase transactions to pay node that found nonce for a block
     pub fn create_coinbase_transaction(recipient_addr: PublicKey) -> Transaction {
-        Transaction {
-            sender_addr: None,
-            recipient_addr,
-            value: 1,
-            signed_digest: None,
-        }
+        Transaction::new(None, recipient_addr, 1)
     }
 }

@@ -1,9 +1,5 @@
 use sodiumoxide::crypto::sign;
-use super::{
-    Tulips,
-    PublicKey,
-    PrivateKey,
-};
+use super::{PrivateKey, PublicKey, Tulips};
 
 use transaction::Transaction;
 
@@ -23,24 +19,32 @@ impl Address {
             public_key,
             private_key,
 
-            balance: 0
+            balance: 0,
         }
     }
 
-    // TODO check account balance and stuff
-    // Returns a signed transaction
-    pub fn new_transaction(&self, value: Tulips, recipient_addr: PublicKey)
-        -> Transaction {
-
-            let mut transaction = Transaction {
-                sender_addr: Some(self.public_key),
-                recipient_addr,
-                value,
-                signed_digest: None,
-            };
-
-            transaction.sign(&self.private_key);
-
-            transaction
+    // Returns a signed transaction, assuming the sender has enough tulips
+    pub fn new_transaction(
+        &mut self,
+        value: Tulips,
+        recipient_addr: PublicKey,
+    ) -> Option<Transaction> {
+        // Transactions should still be forged easily, so basic checks are
+        // verified again before being added to the blockchain
+        if value < 0 {
+            return None;
         }
+
+        if self.balance < value {
+            return None;
+        }
+
+        let mut transaction = Transaction::new(Some(self.public_key), recipient_addr, value);
+
+        // Sign the transaction and update the balance
+        transaction.sign(&self.private_key);
+        self.balance -= value;
+
+        Some(transaction)
+    }
 }

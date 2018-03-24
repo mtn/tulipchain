@@ -1,15 +1,16 @@
 #![feature(plugin)]
 #![plugin(rocket_codegen)]
-#[macro_use] extern crate serde_derive;
-extern crate rocket_contrib;
-extern crate sodiumoxide;
-extern crate serde_json;
 extern crate argparse;
 extern crate bincode;
-extern crate reqwest;
-extern crate rocket;
 extern crate chrono;
 extern crate rand;
+extern crate reqwest;
+extern crate rocket;
+extern crate rocket_contrib;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
+extern crate sodiumoxide;
 
 mod transaction;
 mod blockchain;
@@ -41,7 +42,6 @@ pub struct ServerConfig {
     port: u16,
 }
 
-
 // Endpoint that returns the full serialized chain of that node's blockchain
 #[get("/blockchain/full")]
 fn full_blockchain(blockchain: State<RwLock<Blockchain>>) -> Json<Blockchain> {
@@ -49,37 +49,42 @@ fn full_blockchain(blockchain: State<RwLock<Blockchain>>) -> Json<Blockchain> {
 }
 
 #[post("/join", data = "<addr>")]
-fn join(blockchain: State<RwLock<Blockchain>>, addr: Json<ServerConfig>)
-    -> Json<Blockchain> {
+fn join(blockchain: State<RwLock<Blockchain>>, addr: Json<ServerConfig>) -> Json<Blockchain> {
+    // Clone the blockchain before adding the new node to the peer list
+    let mut to_transmit = blockchain.read().unwrap().clone();
 
-        // Clone the blockchain before adding the new node to the peer list
-        let mut to_transmit = blockchain.read().unwrap().clone();
+    // Empty the peer list before transmitting the blockchain.
+    to_transmit.peers = HashSet::new();
 
-        // Empty the peer list before transmitting the blockchain.
-        to_transmit.peers = HashSet::new();
+    // Add the source address to the list of peers
+    let mut block_writer = blockchain.write().unwrap();
 
-        // Add the source address to the list of peers
-        let mut block_writer = blockchain.write().unwrap();
-
-        let source_config = addr.into_inner();
-        let mut source_str = format!("{}:{}", source_config.address, source_config.port);
-        if !source_str.contains("http://") {
-            source_str = format!("http://{}", source_str);
-        }
-
-        block_writer.register_peer(source_str);
-
-        Json(to_transmit)
+    let source_config = addr.into_inner();
+    let mut source_str = format!("{}:{}", source_config.address, source_config.port);
+    if !source_str.contains("http://") {
+        source_str = format!("http://{}", source_str);
     }
 
+    block_writer.register_peer(source_str);
+
+    Json(to_transmit)
+}
+
 #[get("/transactions/new")]
-fn new_transaction(blockchain: State<Blockchain>) -> Json<Transaction> {
+fn new_transaction(blockchain: State<RwLock<Blockchain>>) -> Json<Transaction> {
     unimplemented!()
-        // serde_json::to_string(&blockchain.chain).unwrap()
+    // serde_json::to_string(&blockchain.chain).unwrap()
 }
 
 #[get("/mine")]
 fn mine_block(blockchain: State<Blockchain>) -> String {
+    serde_json::to_string(&blockchain.chain).unwrap();
+    String::from("Mining a new block")
+}
+
+// Endpoint to report new nonce;
+#[get("/blocks/new")]
+fn add_block(blockchain: State<Blockchain>) -> String {
     serde_json::to_string(&blockchain.chain).unwrap();
     String::from("Mining a new block")
 }
@@ -94,9 +99,11 @@ fn main() {
     {
         let mut ap = ArgumentParser::new();
         ap.set_description("Tulipchain runner");
-        ap.refer(&mut base_addr)
-            .add_option(&["--connect"], Store,
-                        "node address to connect to (base url)");
+        ap.refer(&mut base_addr).add_option(
+            &["--connect"],
+            Store,
+            "node address to connect to (base url)",
+        );
         ap.parse_args_or_exit();
     }
 
@@ -108,14 +115,20 @@ fn main() {
                 port: config.port,
             };
 
-            let chain: RwLock<Blockchain> = Blockchain::init_chain(base_addr.clone(),
-            &server_config);
-            return Ok(rocket.manage(chain))
+            let chain: RwLock<Blockchain> =
+                Blockchain::init_chain(base_addr.clone(), &server_config);
+            return Ok(rocket.manage(chain));
         }))
-    .mount("/", routes![index,
-           join,
-           full_blockchain,
-           new_transaction,
-           mine_block])
+        .mount(
+            "/",
+            routes![
+                index,
+                join,
+                full_blockchain,
+                new_transaction,
+                mine_block,
+                add_block
+            ],
+        )
         .launch();
 }
