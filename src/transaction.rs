@@ -3,6 +3,12 @@ use bincode::serialize;
 use super::{PrivateKey, PublicKey, SignedDigest, Tulips};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct PartialTransaction {
+    pub recipient_addr: PublicKey,
+    pub value: Tulips,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Transaction {
     // Coinbase transactions have no sender
     pub sender_addr: Option<PublicKey>,
@@ -61,6 +67,6 @@ impl Transaction {
 
     // Creates a coinbase transactions to pay node that found nonce for a block
     pub fn create_coinbase_transaction(recipient_addr: PublicKey) -> Transaction {
-        Transaction::new(None, recipient_addr, 1)
+        Transaction::new(None, recipient_addr, 5)
     }
 }

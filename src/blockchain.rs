@@ -37,6 +37,9 @@ pub struct Blockchain {
     pub chain: Vec<Block>,
 
     // Each node holds an address in order to receive transaction, etc.
+    // Note: every blockchain will have an address, but this is wrapped
+    // in an option type solely because PrivateKey has no default value
+    // for deserialization
     #[serde(skip)]
     pub address: Option<Address>,
 
@@ -122,7 +125,6 @@ impl Blockchain {
         // Create a client and send a request to to join
         let client = reqwest::Client::new();
         let serialized_config = serde_json::to_string(config).unwrap();
-        println!("serialized config {}", serialized_config);
 
         let mut headers = Headers::new();
         headers.set(ContentType::json());
@@ -146,7 +148,6 @@ impl Blockchain {
 
         // Text holds the serialized blockchain
         let text = request_text_result.unwrap();
-        println!("text {}", text);
 
         let deserialized: Result<Blockchain, _> = serde_json::from_str(&text);
         if let Err(_) = deserialized {
@@ -177,24 +178,56 @@ impl Blockchain {
 
         if let None = transaction.sender_addr {
             // The transaction is a coinbase, so we look through blocks to find it
-            for block in &self.chain {
+            let mut found = false;
+            for block in self.chain.iter().rev() {
                 if transaction == block.coinbase_transaction {
-                    return true;
+                    found = true;
                 }
             }
 
-            // If it wasn't the coinbase for any block, it must be counterfeit
-            return false;
+            // If it wasn't the coinbase for any block already in the chain,
+            // then it must be counterfeit (coinbase transactions aren't added using
+            // append_transaction)
+            if !found {
+                return false;
+            }
         } else {
-
+            // Otherwise, just verify that it was signed by the sender
+            if !transaction.verify_digest() {
+                return false;
+            }
         }
 
-        // if self.address_balances.contains_key(&transaction.sender_addr) {
+        let sender_addr = transaction.sender_addr.unwrap();
+        if self.address_balances.contains_key(&sender_addr) {
+            let balance = self.address_balances.get(&sender_addr).unwrap();
+            // Ensure the address has enough tulips
+            if *balance < transaction.value {
+                return false;
+            }
+        } else {
+            // 0-balance addresses can't send more than 0 tulips
+            if transaction.value > 0 {
+                return false;
+            }
 
-        // }
-        // if transaction.sender_addr.balance < transaction.value {
-        //     return false
-        // }
+            self.address_balances.insert(sender_addr, 0);
+        }
+
+        // Set the recipient balance, if this is the first transaction it's been
+        // involved in
+        let recipient_addr = transaction.recipient_addr;
+        if !self.address_balances.contains_key(&recipient_addr) {
+            self.address_balances.insert(recipient_addr, 0);
+        }
+
+        // Update the balances
+        self.address_balances
+            .get_mut(&sender_addr)
+            .map(|bal| *bal - transaction.value);
+        self.address_balances
+            .get_mut(&recipient_addr)
+            .map(|bal| *bal + transaction.value);
 
         // Since it is, append it to the list of pending transaction
         self.pending_transactions.push(transaction);
@@ -299,7 +332,19 @@ impl Blockchain {
         last_block.nonce
     }
 
-    pub fn transmit_message(&self) {
-        unimplemented!();
+    // Broadcast the transaction to each peer in the peer list
+    pub fn broadcast_transaction(&self, transaction: Transaction) {
+        let client = reqwest::Client::new();
+
+        let mut headers = Headers::new();
+        headers.set(ContentType::json());
+        for peer in &self.peers {
+            let serialized_transaction = serde_json::to_string(&transaction).unwrap();
+            client
+                .post(peer)
+                .headers(headers.clone())
+                .body(serialized_transaction)
+                .send();
+        }
     }
 }

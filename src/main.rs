@@ -19,10 +19,10 @@ mod address;
 #[cfg(test)]
 mod test;
 
+use transaction::{PartialTransaction, Transaction};
 use argparse::{ArgumentParser, Store};
 use sodiumoxide::crypto::sign;
 use std::collections::HashSet;
-use transaction::Transaction;
 use blockchain::Blockchain;
 use rocket::fairing::AdHoc;
 use rocket_contrib::Json;
@@ -48,7 +48,7 @@ fn full_blockchain(blockchain: State<RwLock<Blockchain>>) -> Json<Blockchain> {
     Json(blockchain.read().unwrap().clone())
 }
 
-#[post("/join", data = "<addr>")]
+#[post("/network/join", data = "<addr>")]
 fn join(blockchain: State<RwLock<Blockchain>>, addr: Json<ServerConfig>) -> Json<Blockchain> {
     // Clone the blockchain before adding the new node to the peer list
     let mut to_transmit = blockchain.read().unwrap().clone();
@@ -70,27 +70,58 @@ fn join(blockchain: State<RwLock<Blockchain>>, addr: Json<ServerConfig>) -> Json
     Json(to_transmit)
 }
 
-#[get("/transactions/new")]
-fn new_transaction(blockchain: State<RwLock<Blockchain>>) -> Json<Transaction> {
-    unimplemented!()
-    // serde_json::to_string(&blockchain.chain).unwrap()
+// Endpoint to receive new transactions from the network
+#[post("/network/transactions/new", data = "<transaction_data>")]
+fn new_transaction_from_network(
+    blockchain: State<RwLock<Blockchain>>,
+    transaction_data: Json<Transaction>,
+) {
+    let transaction = transaction_data.into_inner();
+    let mut block_writer = blockchain.write().unwrap();
+
+    block_writer.append_transaction(transaction);
+}
+
+#[post("/transactions/new", data = "<transaction_data>")]
+fn new_transaction(
+    blockchain: State<RwLock<Blockchain>>,
+    transaction_data: Json<PartialTransaction>,
+) -> Json<Option<Transaction>> {
+    let partial_transaction = transaction_data.into_inner();
+    let mut block_writer = blockchain.write().unwrap();
+    let mut node_addr = block_writer.address.clone().unwrap();
+
+    let transaction = node_addr.new_transaction(
+        partial_transaction.value,
+        partial_transaction.recipient_addr,
+    );
+
+    if let None = transaction {
+        return Json(None);
+    }
+
+    if !block_writer.append_transaction(transaction.clone().unwrap()) {
+        return Json(None);
+    }
+
+    block_writer.broadcast_transaction(transaction.clone().unwrap());
+
+    Json(transaction)
 }
 
 #[get("/mine")]
-fn mine_block(blockchain: State<Blockchain>) -> String {
-    serde_json::to_string(&blockchain.chain).unwrap();
+fn mine_block(blockchain: State<RwLock<Blockchain>>) -> String {
     String::from("Mining a new block")
 }
 
-// Endpoint to report new nonce;
+// Endpoint to report new nonce
 #[get("/blocks/new")]
-fn add_block(blockchain: State<Blockchain>) -> String {
-    serde_json::to_string(&blockchain.chain).unwrap();
+fn add_block(blockchain: State<RwLock<Blockchain>>) -> String {
     String::from("Mining a new block")
 }
 
 #[get("/")]
-fn index(blockchain: State<Blockchain>) -> String {
+fn index(blockchain: State<RwLock<Blockchain>>) -> String {
     unimplemented!()
 }
 
@@ -119,6 +150,7 @@ fn main() {
                 Blockchain::init_chain(base_addr.clone(), &server_config);
             return Ok(rocket.manage(chain));
         }))
+        .manage(reqwest::Client::new())
         .mount(
             "/",
             routes![
@@ -126,6 +158,7 @@ fn main() {
                 join,
                 full_blockchain,
                 new_transaction,
+                new_transaction_from_network,
                 mine_block,
                 add_block
             ],

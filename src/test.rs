@@ -73,6 +73,9 @@ fn test_proof_of_work() {
     assert!(blockchain.chain.len() == 2);
     // With a mining abstraction, there will be an additional coinbase transaction
     assert!(blockchain.chain.last().unwrap().transactions.len() == 1);
+}
 
-    println!("{:?}", blockchain.chain.last().unwrap());
+#[test]
+fn test_create_and_broadcast_transaction() {
+
 }

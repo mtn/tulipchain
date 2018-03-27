@@ -29,12 +29,8 @@ impl Address {
         value: Tulips,
         recipient_addr: PublicKey,
     ) -> Option<Transaction> {
-        // Transactions should still be forged easily, so basic checks are
-        // verified again before being added to the blockchain
-        if value < 0 {
-            return None;
-        }
-
+        // Transactions should still be forged easily, so this is verified again before
+        // the transaction is added to the blockchain
         if self.balance < value {
             return None;
         }
